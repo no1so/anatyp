@@ -1,80 +1,88 @@
+// anatyp source code
+// Author: Will Hovik | willhovik@gmail.com
+//
+
+//-Libraries--------------------------------------------------------------------
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_Thermal.h>
 #include <PS2Keyboard.h>
-
 #include <SPI.h>
 #include <Wire.h>
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 32 // OLED display height, in pixels
+//-Definitions------------------------------------------------------------------
+#define LED_PIN         13
 
-#define LED_PIN 13
+#define SCREEN_WIDTH    128 // OLED width (pixels)
+#define SCREEN_HEIGHT   32 // OLED height (pixels)
+#define OLED_MOSI       7
+#define OLED_CLK        6
+#define OLED_DC         5
+#define OLED_CS         3
+#define OLED_RESET      4
 
-// OLED display 128x32
-#define OLED_MOSI  7
-#define OLED_CLK   6
-#define OLED_DC    5
-#define OLED_CS    3
-#define OLED_RESET 4
+#define CHR_PER_LINE    21
+#define HIDDEN_BUF      21
+#define VIS_BUF         84
+#define WRD_BUF         10  // do something about this
+#define REBOOT (_reboot_Teensyduino_());
+
+//-OLED
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT,
                          OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
-
-// printer
+//-Printer
 Adafruit_Thermal printer(&Serial1);
 
-// keyboard
-const int DataPin = 14;
-const int IRQpin =  15;
+//-Keyboard
+const int DataPin = 14; // orange wire
+const int IRQpin =  15; // green wire
 PS2Keyboard keyboard;
 
-// OLED
-#define CHR_PER_LINE 21
-#define HIDDEN_BUF 21
-#define VIS_BUF 84
-#define WRD_BUF 10  // do something about this
+//-Variables--------------------------------------------------------------------
+char  c;
+bool  newline;
+char  disp_buffer[HIDDEN_BUF + VIS_BUF + 1];
+int   disp_start = HIDDEN_BUF;
+int   disp_len = 0;
+char  print_buffer[33];
+int   print_len = 0;
+int   word_len = 0;
+char  word_buffer[WRD_BUF + 1]; // do something about this
+int   row_len = 0;
+int   neg = 0;
+int   err;
 
-char disp_buffer[HIDDEN_BUF + VIS_BUF + 1];
-int disp_start = HIDDEN_BUF;
-int disp_len = 0;
-char print_buffer[33];
-int print_len = 0;
-int word_len = 0;
-char word_buffer[WRD_BUF + 1]; // do something about this
-int row_len = 0;
-int neg = 0;
+char  test[] = "This is a long string of text";
 
-
+//-Setup------------------------------------------------------------------------
 void setup() {
   keyboard.begin(DataPin, IRQpin);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
 
-  // reset - fill display buffer with spaces ' '
-  for (int i = 0; i < HIDDEN_BUF + VIS_BUF; i++)
-    disp_buffer[i] = ' ';
-
   display.begin(SSD1306_SWITCHCAPVCC);
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
-  display.setCursor(0, 0);
-  display.println(disp_buffer + HIDDEN_BUF);
+  display.setCursor(50, 14);
+  display.print("anatyp");
   display.display();
+  delay(3000);
 
   Serial1.begin(9600);
   printer.begin(255);
+  printer.boldOn();
+  printer.justify('C');
+  printer.setSize('L');
 }
 
+//-Loop-------------------------------------------------------------------------
 void loop() {
 
-  // keyboard setup
-  if (!keyboard.available()) return;
-  char c = keyboard.read();
-  boolean newline = false;
+  c = keyboard.read();
+  newline = false;
 
-  // typing to OLED START //
-  // standard text write to OLED
+//--Display---------------------------------------------------------------------
   if (c >= 33 && c <= 126) {
     word_buffer[word_len] = c;
     word_len++;
@@ -119,14 +127,6 @@ void loop() {
 
   } neg = 0;
 
-  // enter
-  if (c == PS2_ENTER) {
-    newline = true;
-    for (int i = 0; i < 22 - row_len; i++)
-      disp_buffer[disp_start + disp_len + i] = ' ';
-    disp_len += 21 - row_len;
-    row_len = 0;
-  }
 
   // word wrap
   if (row_len == 22 && word_len < 22 && word_len > 0) {
@@ -150,17 +150,24 @@ void loop() {
       disp_buffer[i] = ' ';
     disp_start -= CHR_PER_LINE;
   }
-  // typing to OLED END //
 
-  // printing START //
-  // print two blank lines
-  if (c == PS2_ESC)
-    printer.feed(2);
+//--Printing--------------------------------------------------------------------
 
-  // print when enter is pressed
-  if (newline) {
-    for (int i = 0; i < print_len; i++)
+  if (c == PS2_ESC){
+    printer.feed(3);
+  }
+
+  if (c == PS2_ENTER) {
+    newline = true;
+    for (int i = 0; i < 22 - row_len; i++)
+      disp_buffer[disp_start + disp_len + i] = ' ';
+    disp_len += 21 - row_len;
+    row_len = 0;
+    word_len = 0;
+
+    for (int i = 0; i < print_len; i++) {
       printer.print(print_buffer[i]);
+    }
     printer.feed(1);
     for (int i = 0; i < print_len; i++)
       print_buffer[i] = ' ';
@@ -168,11 +175,10 @@ void loop() {
   }
 
   // print when threshold is met
-  if (word_len > 32 - (print_len - word_len)) {
+  if (word_len > 21 - (print_len - word_len)) {
     for (int i = 0; i < (print_len - word_len); i++)
       printer.print(print_buffer[i]);
     printer.feed(1);
-    // printer.print('\n');
     for (int i = 0; i < word_len; i++)
       print_buffer[i] = word_buffer[i];
     for (int i = 0; i < (print_len - word_len); i++)
@@ -180,8 +186,35 @@ void loop() {
     print_len = word_len;
   }
 
+//--Error-Handling--------------------------------------------------------------
+
+if (word_len == 20) {
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println("Error:\n");
+  display.println("Buffer Overload. \nRestarting...");
+  display.display();
+  delay(5000);
+  // for (int i = 0; i < HIDDEN_BUF + VIS_BUF; i++)
+  //   disp_buffer[i] = ' ';
+  // disp_len = 0;
+  // print_len = 0;
+  // word_len = 0;
+  // row_len = 0;
+  // neg = 0;
+  // for (int i = 0; i < print_len; i++)
+  //   print_buffer[i] = ' ';
+  REBOOT;
+}
+
+//--Refresh---------------------------------------------------------------------
   display.clearDisplay();
   display.setCursor(0, 0);
   display.println(disp_buffer + HIDDEN_BUF);
   display.display();
+
+  printer.boldOn();
+  printer.justify('C');
 }
+
+//-End--------------------------------------------------------------------------
