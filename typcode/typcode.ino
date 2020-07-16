@@ -27,11 +27,19 @@
 #define WRD_BUF         10  // do something about this
 #define REBOOT (_reboot_Teensyduino_());
 
+//-Battery Wake Up Circuitry
+#define WAKE_PIN        23
+#define WAKE_ON_TIME    400
+#define WAKE_PERIOD     2000
+long last_wake = 0;
+int wake_state = LOW;
+
+
 //-OLED
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT,
                          OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
 //-Printer
-Adafruit_Thermal printer(&Serial1);
+Adafruit_Thermal printer(&Serial1, 16);
 
 //-Keyboard
 const int DataPin = 14; // orange wire
@@ -60,6 +68,9 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
 
+  pinMode(WAKE_PIN, OUTPUT);
+  digitalWrite(WAKE_PIN, LOW);
+
   display.begin(SSD1306_SWITCHCAPVCC);
   display.clearDisplay();
   display.setTextSize(1);
@@ -67,13 +78,15 @@ void setup() {
   display.setCursor(50, 14);
   display.print("anatyp");
   display.display();
-  delay(3000);
+  delay(1000L);
 
   Serial1.begin(9600);
-  printer.begin(255);
+  printer.begin(200);
+  // printer.setTimes(35000, 2100);
   printer.boldOn();
   printer.justify('C');
-  printer.setSize('L');
+  printer.feed(1);
+
 }
 
 //-Loop-------------------------------------------------------------------------
@@ -81,6 +94,17 @@ void loop() {
 
   c = keyboard.read();
   newline = false;
+
+//--Battery-Wake----------------------------------------------------------------
+  long cur_time = millis();
+  if (wake_state == HIGH && cur_time - last_wake > WAKE_ON_TIME) {
+    wake_state = LOW;
+  }
+  if (cur_time - last_wake > WAKE_PERIOD) {
+    last_wake = cur_time;
+    wake_state = HIGH;
+  }
+  digitalWrite(WAKE_PIN, wake_state);
 
 //--Display---------------------------------------------------------------------
   if (c >= 33 && c <= 126) {
@@ -151,10 +175,11 @@ void loop() {
     disp_start -= CHR_PER_LINE;
   }
 
+
 //--Printing--------------------------------------------------------------------
 
   if (c == PS2_ESC){
-    printer.feed(3);
+    printer.feed(1);
   }
 
   if (c == PS2_ENTER) {
@@ -168,16 +193,20 @@ void loop() {
     for (int i = 0; i < print_len; i++) {
       printer.print(print_buffer[i]);
     }
+
     printer.feed(1);
     for (int i = 0; i < print_len; i++)
       print_buffer[i] = ' ';
     print_len = 0;
+    // printer.print("THIS IS A TEST");
+    // printer.feed(1);
   }
 
   // print when threshold is met
   if (word_len > 21 - (print_len - word_len)) {
-    for (int i = 0; i < (print_len - word_len); i++)
+    for (int i = 0; i < (print_len - word_len); i++) {
       printer.print(print_buffer[i]);
+    }
     printer.feed(1);
     for (int i = 0; i < word_len; i++)
       print_buffer[i] = word_buffer[i];
@@ -186,26 +215,37 @@ void loop() {
     print_len = word_len;
   }
 
+
 //--Error-Handling--------------------------------------------------------------
 
-if (word_len == 20) {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.println("Error:\n");
-  display.println("Buffer Overload. \nRestarting...");
-  display.display();
-  delay(5000);
-  // for (int i = 0; i < HIDDEN_BUF + VIS_BUF; i++)
-  //   disp_buffer[i] = ' ';
-  // disp_len = 0;
-  // print_len = 0;
-  // word_len = 0;
-  // row_len = 0;
-  // neg = 0;
-  // for (int i = 0; i < print_len; i++)
-  //   print_buffer[i] = ' ';
-  REBOOT;
-}
+  if (word_len == 20) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.println("Error:\n");
+    display.println("Buffer Overload. \nRestarting...");
+    display.display();
+    delay(3000);
+    // for (int i = 0; i < HIDDEN_BUF + VIS_BUF; i++)
+    //   disp_buffer[i] = ' ';
+    // disp_len = 0;
+    // print_len = 0;
+    // word_len = 0;
+    // row_len = 0;
+    // neg = 0;
+    // for (int i = 0; i < print_len; i++)
+    //   print_buffer[i] = ' ';
+    REBOOT;
+  }
+
+  // REBOOT
+  if (c == PS2_PAGEUP) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.println("REBOOT\n");
+    display.display();
+    delay(1000);
+    REBOOT
+  }
 
 //--Refresh---------------------------------------------------------------------
   display.clearDisplay();
@@ -215,6 +255,7 @@ if (word_len == 20) {
 
   printer.boldOn();
   printer.justify('C');
+
 }
 
 //-End--------------------------------------------------------------------------
