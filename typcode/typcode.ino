@@ -68,8 +68,8 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
 
-  pinMode(WAKE_PIN, OUTPUT);
-  digitalWrite(WAKE_PIN, LOW);
+  // pinMode(WAKE_PIN, OUTPUT);
+  // digitalWrite(WAKE_PIN, LOW);
 
   display.begin(SSD1306_SWITCHCAPVCC);
   display.clearDisplay();
@@ -96,15 +96,15 @@ void loop() {
   newline = false;
 
 //--Battery-Wake----------------------------------------------------------------
-  long cur_time = millis();
-  if (wake_state == HIGH && cur_time - last_wake > WAKE_ON_TIME) {
-    wake_state = LOW;
-  }
-  if (cur_time - last_wake > WAKE_PERIOD) {
-    last_wake = cur_time;
-    wake_state = HIGH;
-  }
-  digitalWrite(WAKE_PIN, wake_state);
+  // long cur_time = millis();
+  // if (wake_state == HIGH && cur_time - last_wake > WAKE_ON_TIME) {
+  //   wake_state = LOW;
+  // }
+  // if (cur_time - last_wake > WAKE_PERIOD) {
+  //   last_wake = cur_time;
+  //   wake_state = HIGH;
+  // }
+  // digitalWrite(WAKE_PIN, wake_state);
 
 //--Display---------------------------------------------------------------------
   if (c >= 33 && c <= 126) {
