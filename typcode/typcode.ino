@@ -9,6 +9,7 @@
 #include <PS2Keyboard.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <EEPROM.h>
 
 //-Definitions------------------------------------------------------------------
 #define LED_PIN         13
@@ -60,13 +61,15 @@ int   row_len = 0;
 int   neg = 0;
 int   err;
 
-char  test[] = "This is a long string of text";
+int val;
 
 //-Setup------------------------------------------------------------------------
 void setup() {
   keyboard.begin(DataPin, IRQpin);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
+
+  val = EEPROM.read(0);
 
   // pinMode(WAKE_PIN, OUTPUT);
   // digitalWrite(WAKE_PIN, LOW);
@@ -85,7 +88,6 @@ void setup() {
   // printer.setTimes(35000, 2100);
   printer.boldOn();
   printer.justify('C');
-  printer.feed(1);
 
 }
 
@@ -94,17 +96,6 @@ void loop() {
 
   c = keyboard.read();
   newline = false;
-
-//--Battery-Wake----------------------------------------------------------------
-  // long cur_time = millis();
-  // if (wake_state == HIGH && cur_time - last_wake > WAKE_ON_TIME) {
-  //   wake_state = LOW;
-  // }
-  // if (cur_time - last_wake > WAKE_PERIOD) {
-  //   last_wake = cur_time;
-  //   wake_state = HIGH;
-  // }
-  // digitalWrite(WAKE_PIN, wake_state);
 
 //--Display---------------------------------------------------------------------
   if (c >= 33 && c <= 126) {
@@ -225,15 +216,6 @@ void loop() {
     display.println("Buffer Overload. \nRestarting...");
     display.display();
     delay(3000);
-    // for (int i = 0; i < HIDDEN_BUF + VIS_BUF; i++)
-    //   disp_buffer[i] = ' ';
-    // disp_len = 0;
-    // print_len = 0;
-    // word_len = 0;
-    // row_len = 0;
-    // neg = 0;
-    // for (int i = 0; i < print_len; i++)
-    //   print_buffer[i] = ' ';
     REBOOT;
   }
 
